@@ -32,7 +32,10 @@ export async function ensureGameLoaded(gameId: string): Promise<boolean> {
     const data = await blob.get(gameId, { type: "json" });
     if (data && typeof data === "object" && "gameId" in data && "adminId" in data) {
       const state = data as GameState;
+      const needsMigration = typeof state.revisionId !== "number";
+      if (needsMigration) state.revisionId = 1;
       store.set(gameId, state);
+      if (needsMigration) await persistGame(gameId);
       return true;
     }
   } catch {
@@ -81,10 +84,21 @@ export const assignUserColor = (gameId: string, name: string): void => {
 
 const store = new Map<string, GameState>();
 
+function bumpRevision(state: GameState): void {
+  state.revisionId = (state.revisionId ?? 1) + 1;
+}
+
+/** Bump revision after a mutation (e.g. join). Call from API after mutating state. */
+export function incrementRevision(gameId: string): void {
+  const state = store.get(gameId);
+  if (state) bumpRevision(state);
+}
+
 async function createGame(gameId: string, adminId: string): Promise<GameState> {
   const state: GameState = {
     gameId,
     adminId,
+    revisionId: 1,
     locked: false,
     rowNumbers: null,
     colNumbers: null,
@@ -122,6 +136,7 @@ export const resetGame = (gameId: string): GameState | null => {
   state.squares = {};
   state.users = {};
   state.userColors = {};
+  bumpRevision(state);
   return state;
 };
 
@@ -131,6 +146,7 @@ export const populateNumbers = (gameId: string): GameState | null => {
   if (state.locked) return null;
   state.rowNumbers = shuffleZeroThroughNine();
   state.colNumbers = shuffleZeroThroughNine();
+  bumpRevision(state);
   return state;
 };
 
@@ -141,6 +157,7 @@ export const setLocked = (
   const state = store.get(gameId);
   if (!state) return { success: false, error: "Game not found" };
   state.locked = locked;
+  bumpRevision(state);
   return { success: true };
 };
 
@@ -148,10 +165,14 @@ export const claimSquare = (
   gameId: string,
   name: string,
   row: number,
-  col: number
+  col: number,
+  expectedRevisionId?: number
 ): { success: boolean; error?: string } => {
   const state = store.get(gameId);
   if (!state) return { success: false, error: "Game not found" };
+  if (expectedRevisionId !== undefined && (state.revisionId ?? 1) !== expectedRevisionId) {
+    return { success: false, error: "STALE_REVISION" };
+  }
   if (state.locked) return { success: false, error: "Board is locked" };
   const key = `${row},${col}`;
   if (
@@ -176,6 +197,7 @@ export const claimSquare = (
     name: trimmedName,
     lastSeen: Date.now(),
   };
+  bumpRevision(state);
   return { success: true };
 };
 
@@ -183,10 +205,14 @@ export const unclaimSquare = (
   gameId: string,
   name: string,
   row: number,
-  col: number
+  col: number,
+  expectedRevisionId?: number
 ): { success: boolean; error?: string } => {
   const state = store.get(gameId);
   if (!state) return { success: false, error: "Game not found" };
+  if (expectedRevisionId !== undefined && (state.revisionId ?? 1) !== expectedRevisionId) {
+    return { success: false, error: "STALE_REVISION" };
+  }
   if (state.locked) return { success: false, error: "Board is locked" };
   const key = `${row},${col}`;
   if (
@@ -202,6 +228,7 @@ export const unclaimSquare = (
     return { success: false, error: "You can only remove your own square" };
   }
   delete state.squares[key];
+  bumpRevision(state);
   return { success: true };
 };
 

@@ -11,6 +11,7 @@ import {
   unclaimSquare,
   setLocked,
   assignUserColor,
+  incrementRevision,
 } from "@/lib/game-store";
 
 const getAdminIdFromRequest = (request: NextRequest): string | null => {
@@ -19,11 +20,12 @@ const getAdminIdFromRequest = (request: NextRequest): string | null => {
 };
 
 const sanitizeState = (
-  state: { gameId: string; locked?: boolean; rowNumbers: number[] | null; colNumbers: number[] | null; squares: Record<string, string>; users: Record<string, { name: string; lastSeen?: number }>; userColors?: Record<string, string>; adminId: string },
+  state: { gameId: string; revisionId?: number; locked?: boolean; rowNumbers: number[] | null; colNumbers: number[] | null; squares: Record<string, string>; users: Record<string, { name: string; lastSeen?: number }>; userColors?: Record<string, string>; adminId: string },
   adminId: string | null
 ): GameStatePublic => {
   return {
     gameId: state.gameId,
+    revisionId: state.revisionId ?? 1,
     locked: state.locked ?? false,
     rowNumbers: state.rowNumbers,
     colNumbers: state.colNumbers,
@@ -90,6 +92,7 @@ export const POST = async (
     const state = await getOrCreateGame(gameId, effectiveAdminId);
     state.users[name] = { name, lastSeen: Date.now() };
     assignUserColor(gameId, name);
+    incrementRevision(gameId);
     await persistGame(gameId);
     const response = NextResponse.json(
       sanitizeState(state, effectiveAdminId)
@@ -129,6 +132,7 @@ export const POST = async (
     }
     const name = action.name?.trim();
     const square = action.square;
+    const revisionId = action.revisionId;
     if (!name) {
       return NextResponse.json(
         { error: "Name is required" },
@@ -146,8 +150,26 @@ export const POST = async (
         { status: 400 }
       );
     }
-    const result = claimSquare(gameId, name, square[0], square[1]);
+    if (revisionId !== undefined && (state.revisionId ?? 1) !== revisionId) {
+      return NextResponse.json(
+        {
+          error: "Board was updated. Please refresh and try again.",
+          state: sanitizeState(state, adminId),
+        },
+        { status: 409 }
+      );
+    }
+    const result = claimSquare(gameId, name, square[0], square[1], revisionId);
     if (!result.success) {
+      if (result.error === "STALE_REVISION") {
+        return NextResponse.json(
+          {
+            error: "Board was updated. Please refresh and try again.",
+            state: sanitizeState(getGame(gameId)!, adminId),
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: result.error },
         { status: result.error === "Square already taken" ? 409 : result.error === "Board is locked" ? 403 : 400 }
@@ -166,6 +188,7 @@ export const POST = async (
     }
     const name = action.name?.trim();
     const square = action.square;
+    const revisionId = action.revisionId;
     if (!name) {
       return NextResponse.json(
         { error: "Name is required" },
@@ -183,8 +206,26 @@ export const POST = async (
         { status: 400 }
       );
     }
-    const result = unclaimSquare(gameId, name, square[0], square[1]);
+    if (revisionId !== undefined && (state.revisionId ?? 1) !== revisionId) {
+      return NextResponse.json(
+        {
+          error: "Board was updated. Please refresh and try again.",
+          state: sanitizeState(state, adminId),
+        },
+        { status: 409 }
+      );
+    }
+    const result = unclaimSquare(gameId, name, square[0], square[1], revisionId);
     if (!result.success) {
+      if (result.error === "STALE_REVISION") {
+        return NextResponse.json(
+          {
+            error: "Board was updated. Please refresh and try again.",
+            state: sanitizeState(getGame(gameId)!, adminId),
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: result.error },
         { status: result.error === "Board is locked" ? 403 : 400 }

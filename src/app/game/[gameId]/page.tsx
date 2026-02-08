@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -24,8 +24,12 @@ const GamePage = () => {
   const [error, setError] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState("");
 
-  const fetchState = useCallback(async () => {
+  /** Time when we last applied state from a mutation or explicit refresh; used so stale poll responses don't overwrite. */
+  const lastMutationAtRef = useRef(0);
+
+  const fetchState = useCallback(async (fromPoll?: boolean) => {
     if (!gameId) return;
+    const pollStartedAt = fromPoll ? Date.now() : 0;
     try {
       const res = await fetch(`/api/game/${gameId}`);
       if (res.status === 404) {
@@ -37,6 +41,8 @@ const GamePage = () => {
         return;
       }
       const data: GameStatePublic = await res.json();
+      if (fromPoll && lastMutationAtRef.current > pollStartedAt) return;
+      if (!fromPoll) lastMutationAtRef.current = Date.now();
       setState(data);
       setError(null);
     } catch {
@@ -63,7 +69,7 @@ const GamePage = () => {
 
   useEffect(() => {
     if (!gameId || !state) return;
-    const id = setInterval(fetchState, POLL_INTERVAL_MS);
+    const id = setInterval(() => fetchState(true), POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [gameId, state, fetchState]);
 
@@ -84,6 +90,7 @@ const GamePage = () => {
         }
         const data: GameStatePublic = await res.json();
         setState(data);
+        lastMutationAtRef.current = Date.now();
         setPlayerName(name);
         setError(null);
         try {
@@ -98,6 +105,8 @@ const GamePage = () => {
     [gameId]
   );
 
+  const STALE_MESSAGE = "Board was updated. Please refresh and try again.";
+
   const handleClaimSquare = useCallback(
     async (row: number, col: number) => {
       if (!gameId || !playerName.trim()) return;
@@ -109,21 +118,29 @@ const GamePage = () => {
             action: "claim",
             name: playerName.trim(),
             square: [row, col],
+            revisionId: state?.revisionId,
           }),
           credentials: "include",
         });
+        const data = await res.json().catch(() => ({}));
         if (res.status === 409) {
-          setError("That square was just taken. Refreshing…");
-          fetchState();
+          if (data.error === STALE_MESSAGE && data.state) {
+            setState(data.state);
+            lastMutationAtRef.current = Date.now();
+            setError(STALE_MESSAGE);
+          } else {
+            setError("That square was just taken. Refreshing…");
+            fetchState();
+          }
           return;
         }
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error ?? "Could not claim square");
+          setError((data.error as string) ?? "Could not claim square");
           return;
         }
-        const data: GameStatePublic = await res.json();
-        setState(data);
+        const nextState = data as GameStatePublic;
+        setState(nextState);
+        lastMutationAtRef.current = Date.now();
         setError(null);
         try {
           const confetti = (await import("canvas-confetti")).default;
@@ -140,7 +157,7 @@ const GamePage = () => {
         setError("Failed to claim square");
       }
     },
-    [gameId, playerName, fetchState]
+    [gameId, playerName, state?.revisionId, fetchState]
   );
 
   const handleUnclaimSquare = useCallback(
@@ -154,26 +171,34 @@ const GamePage = () => {
             action: "unclaim",
             name: playerName.trim(),
             square: [row, col],
+            revisionId: state?.revisionId,
           }),
           credentials: "include",
         });
+        const data = await res.json().catch(() => ({}));
         if (res.status === 403) {
           setError("Board is locked");
           return;
         }
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error ?? "Could not remove selection");
+        if (res.status === 409 && data.error === STALE_MESSAGE && data.state) {
+          setState(data.state);
+          lastMutationAtRef.current = Date.now();
+          setError(STALE_MESSAGE);
           return;
         }
-        const data: GameStatePublic = await res.json();
-        setState(data);
+        if (!res.ok) {
+          setError((data.error as string) ?? "Could not remove selection");
+          return;
+        }
+        const nextState = data as GameStatePublic;
+        setState(nextState);
+        lastMutationAtRef.current = Date.now();
         setError(null);
       } catch {
         setError("Failed to remove selection");
       }
     },
-    [gameId, playerName]
+    [gameId, playerName, state?.revisionId]
   );
 
   const handleReset = useCallback(async () => {
@@ -187,6 +212,7 @@ const GamePage = () => {
     if (res.ok) {
       const data: GameStatePublic = await res.json();
       setState(data);
+      lastMutationAtRef.current = Date.now();
       setError(null);
     } else {
       const data = await res.json().catch(() => ({}));
@@ -205,6 +231,7 @@ const GamePage = () => {
     if (res.ok) {
       const data: GameStatePublic = await res.json();
       setState(data);
+      lastMutationAtRef.current = Date.now();
       setError(null);
     } else {
       const data = await res.json().catch(() => ({}));
@@ -223,6 +250,7 @@ const GamePage = () => {
     if (res.ok) {
       const data: GameStatePublic = await res.json();
       setState(data);
+      lastMutationAtRef.current = Date.now();
       setError(null);
     } else {
       const data = await res.json().catch(() => ({}));
@@ -241,6 +269,7 @@ const GamePage = () => {
     if (res.ok) {
       const data: GameStatePublic = await res.json();
       setState(data);
+      lastMutationAtRef.current = Date.now();
       setError(null);
     } else {
       const data = await res.json().catch(() => ({}));
