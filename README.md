@@ -15,7 +15,7 @@ Open [http://localhost:3000](http://localhost:3000). Create a game, share the li
 
 1. Push the repo to GitHub, GitLab, or Bitbucket.
 2. In [Netlify](https://app.netlify.com), click **Add new site** → **Import an existing project** and connect the repo.
-3. Netlify will detect Next.js and use the OpenNext adapter. Build settings are in `netlify.toml` (Node 18, `npm run build`).
+3. Netlify will detect Next.js and use the OpenNext adapter. Build settings are in `netlify.toml` (Node 20.19.33, `npm run build`).
 4. Deploy. Your site will be available at `https://<your-site>.netlify.app`.
 
 **Note:** Game state is in-memory on the server. On Netlify, serverless functions are stateless, so game state will not persist across requests or deploys. For production you’ll need a persistent store (e.g. Redis, Upstash, or a database) and to replace the in-memory store in `src/lib/game-store.ts`.
