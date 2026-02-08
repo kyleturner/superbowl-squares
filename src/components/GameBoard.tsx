@@ -8,10 +8,13 @@ import SquareCell from "./SquareCell";
 type GameBoardProps = {
   state: GameStatePublic;
   onSelectSquare: (row: number, col: number) => void;
+  onUnclaimSquare?: (row: number, col: number) => void;
   canClaim: boolean;
+  locked: boolean;
+  playerName: string;
 };
 
-const GameBoard = memo(({ state, onSelectSquare, canClaim }: GameBoardProps) => {
+const GameBoard = memo(({ state, onSelectSquare, onUnclaimSquare, canClaim, locked, playerName }: GameBoardProps) => {
   const { rowNumbers, colNumbers, squares, userColors } = state;
   const getUserColor = (name: string): string | undefined =>
     userColors?.[name];
@@ -106,7 +109,10 @@ const GameBoard = memo(({ state, onSelectSquare, canClaim }: GameBoardProps) => 
                       name={name}
                       nameColor={name ? getUserColor(name) : undefined}
                       onSelect={onSelectSquare}
-                      disabled={!canClaim}
+                      disabled={!canClaim || locked}
+                      canUnclaim={!locked && canClaim}
+                      currentPlayerName={playerName}
+                      onUnclaim={onUnclaimSquare}
                     />
                   );
                 })}

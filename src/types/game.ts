@@ -16,6 +16,7 @@ export type GameStatePublic = Omit<GameState, "adminId"> & {
 export type GameAction =
   | { action: "join"; name: string }
   | { action: "claim"; name: string; square: [number, number] }
+  | { action: "unclaim"; name: string; square: [number, number] }
   | { action: "reset"; adminId?: string }
   | { action: "populate"; adminId?: string }
   | { action: "lock"; adminId?: string }

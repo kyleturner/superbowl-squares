@@ -152,6 +152,7 @@ export const claimSquare = (
 ): { success: boolean; error?: string } => {
   const state = store.get(gameId);
   if (!state) return { success: false, error: "Game not found" };
+  if (state.locked) return { success: false, error: "Board is locked" };
   const key = `${row},${col}`;
   if (
     row < 0 ||
@@ -175,6 +176,32 @@ export const claimSquare = (
     name: trimmedName,
     lastSeen: Date.now(),
   };
+  return { success: true };
+};
+
+export const unclaimSquare = (
+  gameId: string,
+  name: string,
+  row: number,
+  col: number
+): { success: boolean; error?: string } => {
+  const state = store.get(gameId);
+  if (!state) return { success: false, error: "Game not found" };
+  if (state.locked) return { success: false, error: "Board is locked" };
+  const key = `${row},${col}`;
+  if (
+    row < 0 ||
+    row >= SQUARE_ROWS ||
+    col < 0 ||
+    col >= SQUARE_COLS
+  ) {
+    return { success: false, error: "Invalid square" };
+  }
+  const current = state.squares[key];
+  if (!current || current.trim() !== name.trim()) {
+    return { success: false, error: "You can only remove your own square" };
+  }
+  delete state.squares[key];
   return { success: true };
 };
 

@@ -8,6 +8,7 @@ import {
   resetGame,
   populateNumbers,
   claimSquare,
+  unclaimSquare,
   setLocked,
   assignUserColor,
 } from "@/lib/game-store";
@@ -120,6 +121,12 @@ export const POST = async (
   }
 
   if (action.action === "claim") {
+    if (state.locked) {
+      return NextResponse.json(
+        { error: "Board is locked" },
+        { status: 403 }
+      );
+    }
     const name = action.name?.trim();
     const square = action.square;
     if (!name) {
@@ -143,7 +150,44 @@ export const POST = async (
     if (!result.success) {
       return NextResponse.json(
         { error: result.error },
-        { status: result.error === "Square already taken" ? 409 : 400 }
+        { status: result.error === "Square already taken" ? 409 : result.error === "Board is locked" ? 403 : 400 }
+      );
+    }
+    await persistGame(gameId);
+    return NextResponse.json(sanitizeState(state, adminId));
+  }
+
+  if (action.action === "unclaim") {
+    if (state.locked) {
+      return NextResponse.json(
+        { error: "Board is locked" },
+        { status: 403 }
+      );
+    }
+    const name = action.name?.trim();
+    const square = action.square;
+    if (!name) {
+      return NextResponse.json(
+        { error: "Name is required" },
+        { status: 400 }
+      );
+    }
+    if (
+      !Array.isArray(square) ||
+      square.length !== 2 ||
+      typeof square[0] !== "number" ||
+      typeof square[1] !== "number"
+    ) {
+      return NextResponse.json(
+        { error: "Valid square [row, col] is required" },
+        { status: 400 }
+      );
+    }
+    const result = unclaimSquare(gameId, name, square[0], square[1]);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.error === "Board is locked" ? 403 : 400 }
       );
     }
     await persistGame(gameId);

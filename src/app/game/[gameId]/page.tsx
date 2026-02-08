@@ -143,6 +143,39 @@ const GamePage = () => {
     [gameId, playerName, fetchState]
   );
 
+  const handleUnclaimSquare = useCallback(
+    async (row: number, col: number) => {
+      if (!gameId || !playerName.trim()) return;
+      try {
+        const res = await fetch(`/api/game/${gameId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "unclaim",
+            name: playerName.trim(),
+            square: [row, col],
+          }),
+          credentials: "include",
+        });
+        if (res.status === 403) {
+          setError("Board is locked");
+          return;
+        }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? "Could not remove selection");
+          return;
+        }
+        const data: GameStatePublic = await res.json();
+        setState(data);
+        setError(null);
+      } catch {
+        setError("Failed to remove selection");
+      }
+    },
+    [gameId, playerName]
+  );
+
   const handleReset = useCallback(async () => {
     if (!gameId) return;
     const res = await fetch(`/api/game/${gameId}`, {
@@ -315,7 +348,7 @@ const GamePage = () => {
             >
               {playerName}
             </strong>
-            . Tap an empty square to claim it.
+            . Tap an empty square to claim it; tap your square again to remove it (when the board is unlocked).
           </p>
         )}
 
@@ -337,7 +370,10 @@ const GamePage = () => {
         <GameBoard
           state={state}
           onSelectSquare={handleClaimSquare}
+          onUnclaimSquare={handleUnclaimSquare}
           canClaim={hasJoined}
+          locked={state.locked}
+          playerName={playerName}
         />
       </div>
     </main>
