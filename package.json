@@ -12,11 +12,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.6.0",
     "canvas-confetti": "^1.9.0",
+    "nanoid": "^5.0.0",
     "next": "^14.2.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "nanoid": "^5.0.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

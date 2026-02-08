@@ -1,3 +1,4 @@
+import { getStore } from "@netlify/blobs";
 import { nanoid } from "nanoid";
 import {
   type GameState,
@@ -5,6 +6,53 @@ import {
   SQUARE_COLS,
 } from "@/types/game";
 import { shuffleZeroThroughNine } from "./game-utils";
+
+const BLOB_STORE_NAME = "superbowl-games";
+
+/** Lazy init blob store; null when not on Netlify or Blobs unavailable (e.g. local dev). */
+let blobStore: ReturnType<typeof getStore> | null | undefined = undefined;
+
+function getBlobStore(): ReturnType<typeof getStore> | null {
+  if (blobStore !== undefined) return blobStore;
+  try {
+    blobStore = getStore(BLOB_STORE_NAME);
+    return blobStore;
+  } catch {
+    blobStore = null;
+    return null;
+  }
+}
+
+/** Load game from persistent store into memory cache. Returns true if game exists (in cache after load). */
+export async function ensureGameLoaded(gameId: string): Promise<boolean> {
+  if (store.has(gameId)) return true;
+  const blob = getBlobStore();
+  if (!blob) return false;
+  try {
+    const data = await blob.get(gameId, { type: "json" });
+    if (data && typeof data === "object" && "gameId" in data && "adminId" in data) {
+      const state = data as GameState;
+      store.set(gameId, state);
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+/** Persist current in-memory state to Blobs so other instances/devices can load it. */
+export async function persistGame(gameId: string): Promise<void> {
+  const state = store.get(gameId);
+  if (!state) return;
+  const blob = getBlobStore();
+  if (!blob) return;
+  try {
+    await blob.setJSON(gameId, state);
+  } catch {
+    // ignore; in-memory state still valid
+  }
+}
 
 /** Complementary palette: distinct hues, same saturation/brightness, readable on white */
 const USER_COLOR_PALETTE = [
@@ -33,7 +81,7 @@ export const assignUserColor = (gameId: string, name: string): void => {
 
 const store = new Map<string, GameState>();
 
-const createGame = (gameId: string, adminId: string): GameState => {
+async function createGame(gameId: string, adminId: string): Promise<GameState> {
   const state: GameState = {
     gameId,
     adminId,
@@ -45,20 +93,25 @@ const createGame = (gameId: string, adminId: string): GameState => {
     userColors: {},
   };
   store.set(gameId, state);
+  await persistGame(gameId);
   return state;
-};
+}
 
 export const getGame = (gameId: string): GameState | undefined =>
   store.get(gameId);
 
-export const getOrCreateGame = (
+/** Get existing game (loading from Blobs if needed) or create and persist. */
+export async function getOrCreateGame(
   gameId: string,
   adminId: string
-): GameState => {
-  const existing = store.get(gameId);
-  if (existing) return existing;
+): Promise<GameState> {
+  const loaded = await ensureGameLoaded(gameId);
+  if (loaded) {
+    const existing = store.get(gameId);
+    if (existing) return existing;
+  }
   return createGame(gameId, adminId);
-};
+}
 
 export const resetGame = (gameId: string): GameState | null => {
   const state = store.get(gameId);

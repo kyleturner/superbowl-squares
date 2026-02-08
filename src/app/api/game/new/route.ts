@@ -9,7 +9,7 @@ const getAdminIdFromRequest = (request: NextRequest): string | null => {
 export const GET = async (request: NextRequest) => {
   const gameId = generateGameId();
   const adminId = getAdminIdFromRequest(request) ?? `admin-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  getOrCreateGame(gameId, adminId);
+  await getOrCreateGame(gameId, adminId);
   const response = NextResponse.json({ gameId });
   response.cookies.set("superbowl_admin_id", adminId, {
     httpOnly: true,

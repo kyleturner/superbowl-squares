@@ -3,6 +3,8 @@ import type { GameAction, GameStatePublic } from "@/types/game";
 import {
   getGame,
   getOrCreateGame,
+  ensureGameLoaded,
+  persistGame,
   resetGame,
   populateNumbers,
   claimSquare,
@@ -37,6 +39,13 @@ export const GET = async (
 ) => {
   const { gameId } = await params;
   const adminId = getAdminIdFromRequest(request);
+  const loaded = await ensureGameLoaded(gameId);
+  if (!loaded) {
+    return NextResponse.json(
+      { error: "Game not found" },
+      { status: 404 }
+    );
+  }
   const state = getGame(gameId);
   if (!state) {
     return NextResponse.json(
@@ -72,13 +81,15 @@ export const POST = async (
         { status: 400 }
       );
     }
+    await ensureGameLoaded(gameId);
     const existing = getGame(gameId);
     const isFirstJoin = !existing;
     const effectiveAdminId =
       adminId ?? (isFirstJoin ? `admin-${Date.now()}-${Math.random().toString(36).slice(2)}` : `anon-${Date.now()}`);
-    const state = getOrCreateGame(gameId, effectiveAdminId);
+    const state = await getOrCreateGame(gameId, effectiveAdminId);
     state.users[name] = { name, lastSeen: Date.now() };
     assignUserColor(gameId, name);
+    await persistGame(gameId);
     const response = NextResponse.json(
       sanitizeState(state, effectiveAdminId)
     );
@@ -93,6 +104,13 @@ export const POST = async (
     return response;
   }
 
+  const loaded = await ensureGameLoaded(gameId);
+  if (!loaded) {
+    return NextResponse.json(
+      { error: "Game not found" },
+      { status: 404 }
+    );
+  }
   const state = getGame(gameId);
   if (!state) {
     return NextResponse.json(
@@ -128,6 +146,7 @@ export const POST = async (
         { status: result.error === "Square already taken" ? 409 : 400 }
       );
     }
+    await persistGame(gameId);
     return NextResponse.json(sanitizeState(state, adminId));
   }
 
@@ -153,6 +172,7 @@ export const POST = async (
         { status: 404 }
       );
     }
+    await persistGame(gameId);
     return NextResponse.json(sanitizeState(updated, adminId));
   }
 
@@ -176,6 +196,7 @@ export const POST = async (
         { status: 404 }
       );
     }
+    await persistGame(gameId);
     return NextResponse.json(sanitizeState(updated, adminId));
   }
 
@@ -193,6 +214,7 @@ export const POST = async (
         { status: 404 }
       );
     }
+    await persistGame(gameId);
     return NextResponse.json(sanitizeState(getGame(gameId)!, adminId));
   }
 
@@ -210,6 +232,7 @@ export const POST = async (
         { status: 404 }
       );
     }
+    await persistGame(gameId);
     return NextResponse.json(sanitizeState(getGame(gameId)!, adminId));
   }
 
