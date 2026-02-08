@@ -52,6 +52,17 @@ const GamePage = () => {
     }
   }, [gameId]);
 
+  /** When gameId changes (e.g. new tab to different game, or navigation), clear state so we never show another game's data. */
+  useEffect(() => {
+    if (!gameId) return;
+    setState(null);
+    setLoading(true);
+    setError(null);
+    setPlayerName("");
+    lastMutationAtRef.current = 0;
+  }, [gameId]);
+
+  /** Always fetch latest from server when gameId is set; ensures admin sees current game and no cross-game state. */
   useEffect(() => {
     if (!gameId) return;
     fetchState();
