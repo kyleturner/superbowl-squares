@@ -1,0 +1,12 @@
+# Netlify configuration for Next.js (Super Bowl Squares)
+# Netlify auto-detects Next.js and uses the OpenNext adapter for SSR, API routes, and App Router.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Optional: enable skew protection for smoother deploys when users are active during a release
+# [context.production.environment]
+#   NETLIFY_NEXT_SKEW_PROTECTION = "true"
