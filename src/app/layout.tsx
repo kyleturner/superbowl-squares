@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Casa Turner Super Bowl Squares",
-  description: "Casa Turner Super Bowl Squares — Interactive NFL Super Bowl Squares game",
+  title: "Turner's Super Bowl Squares",
+  description: "Turner's Super Bowl Squares — Interactive NFL Super Bowl Squares game",
 };
 
 export const viewport: Viewport = {

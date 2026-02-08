@@ -250,7 +250,7 @@ const GamePage = () => {
   const allFilled = claimedCount >= 100;
 
   return (
-    <main className="min-h-[100dvh] flex flex-col w-full max-w-4xl mx-auto px-2 sm:px-4 pb-safe">
+    <main className="min-h-[100dvh] flex flex-col w-full max-w-4xl mx-auto px-2 sm:px-4 pb-[max(20px,env(safe-area-inset-bottom))]">
       {/* Header: centered Super Bowl logo + title (calligraphic), Home link */}
       <header className="shrink-0 relative flex flex-col items-center justify-center gap-1 py-2 sm:py-3">
         <Link
@@ -272,7 +272,7 @@ const GamePage = () => {
         <h1
           className={`${pacifico.className} mt-[5px] text-xl sm:text-2xl md:text-3xl font-normal text-white text-center`}
         >
-          Casa Turner Super Bowl Squares
+          Turner's Super Bowl Squares
         </h1>
       </header>
 
