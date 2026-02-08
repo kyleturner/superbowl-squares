@@ -270,7 +270,7 @@ const GamePage = () => {
           aria-hidden
         />
         <h1
-          className={`${pacifico.className} text-xl sm:text-2xl md:text-3xl font-normal text-white text-center`}
+          className={`${pacifico.className} mt-[5px] text-xl sm:text-2xl md:text-3xl font-normal text-white text-center`}
         >
           Casa Turner Super Bowl Squares
         </h1>

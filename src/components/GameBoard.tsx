@@ -23,13 +23,13 @@ const GameBoard = memo(({ state, onSelectSquare, canClaim }: GameBoardProps) => 
       {/* Board: team headers + grid — fills remaining space */}
       <div className="flex flex-col flex-1 min-h-0 w-full overflow-auto">
         {/* New England (top) */}
-        <div className="flex items-center justify-center gap-2 sm:gap-3 shrink-0 bg-nfl-charcoal border border-gray-700 rounded-t-xl py-1.5 sm:py-2 px-2">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-3 shrink-0 bg-nfl-charcoal border border-gray-700 rounded-t-xl py-1 sm:py-2 px-2">
           <Image
             src="/teams/patriots.svg"
             alt=""
             width={120}
             height={120}
-            className="shrink-0 w-24 h-24 sm:w-[7.5rem] sm:h-[7.5rem]"
+            className="shrink-0 w-9 h-9 sm:w-24 sm:h-24 md:w-[7.5rem] md:h-[7.5rem]"
             aria-hidden
           />
           <span className="font-bold uppercase tracking-wider text-white text-sm sm:text-base">
@@ -40,7 +40,7 @@ const GameBoard = memo(({ state, onSelectSquare, canClaim }: GameBoardProps) => 
         <div className="flex flex-1 min-h-0 min-w-0">
           {/* Seattle (left) — vertical */}
           <div
-            className="flex flex-col items-center justify-center shrink-0 w-24 sm:w-28 bg-nfl-charcoal border border-gray-700 border-t-0 border-r-0 py-2"
+            className="flex flex-col items-center justify-center shrink-0 w-12 sm:w-24 md:w-28 bg-nfl-charcoal border border-gray-700 border-t-0 border-r-0 py-1 sm:py-2"
             aria-hidden
           >
             <Image
@@ -48,7 +48,7 @@ const GameBoard = memo(({ state, onSelectSquare, canClaim }: GameBoardProps) => 
               alt=""
               width={120}
               height={120}
-              className="shrink-0 w-24 h-24 sm:w-[7.5rem] sm:h-[7.5rem] rotate-[90deg]"
+              className="shrink-0 w-9 h-9 sm:w-24 sm:h-24 md:w-[7.5rem] md:h-[7.5rem] rotate-[90deg]"
             />
             <span
               className="font-bold uppercase tracking-wider text-white text-xs sm:text-sm mt-1 whitespace-nowrap"
@@ -58,10 +58,10 @@ const GameBoard = memo(({ state, onSelectSquare, canClaim }: GameBoardProps) => 
             </span>
           </div>
 
-          {/* 11x11 grid — square, as large as fits in available space */}
-          <div className="flex-1 min-h-0 min-w-0 flex items-center justify-center p-0 sm:p-1">
-            <div
-              className="w-full max-h-full grid gap-0 border-0 sm:border border-gray-700 border-t-0 overflow-hidden"
+          {/* 11x11 grid — square, pinned to top-left of container */}
+          <div className="flex-1 min-h-0 min-w-0 flex items-start justify-start p-0 sm:p-1">
+          <div
+            className="w-full max-h-full grid gap-0 border-0 sm:border border-gray-600 border-t-0 overflow-hidden self-start"
               style={{
                 aspectRatio: "11 / 11",
                 gridTemplateColumns: "minmax(0,1fr) repeat(10, minmax(0,1fr))",

@@ -36,9 +36,9 @@ const SquareCell = memo(({ row, col, name, nameColor, onSelect, disabled }: Squa
       tabIndex={isClickable ? 0 : -1}
       aria-label={name ? `Square ${row + 1},${col + 1} taken by ${name}` : `Select square ${row + 1},${col + 1}`}
       className={`
-        min-h-0 min-w-0 border border-gray-700 bg-white text-gray-900
-        flex items-center justify-center p-0.5 sm:p-1
-        text-[clamp(0.5rem,2.8vw,0.95rem)] sm:text-sm font-bold
+        min-h-0 min-w-0 border border-gray-500 bg-white text-gray-900
+        flex items-center justify-center p-0 sm:p-1
+        text-[clamp(0.4rem,2.2vw,0.95rem)] sm:text-sm font-bold
         transition-colors select-none
         ${isClickable ? "cursor-pointer hover:bg-gray-100 active:bg-gray-200 focus:outline focus:ring-2 focus:ring-nfl-patriots-accent focus:ring-inset" : ""}
         ${!isEmpty ? "bg-gray-50 cursor-default" : ""}
@@ -46,7 +46,7 @@ const SquareCell = memo(({ row, col, name, nameColor, onSelect, disabled }: Squa
     >
       {name ? (
         <span
-          className="truncate w-full text-center leading-tight font-bold"
+          className="line-clamp-2 break-words w-full text-center leading-tight font-bold px-0.5 overflow-hidden"
           title={name}
           style={nameColor ? { color: nameColor } : undefined}
         >
