@@ -141,10 +141,13 @@ export const POST = async (
         { status: 400 }
       );
     }
-    if (revisionId !== undefined && (state.revisionId ?? 1) !== revisionId) {
+    // Check square availability before calling claimSquare - if square is empty, allow claim even if revisionId differs
+    const key = `${square[0]},${square[1]}`;
+    if (state.squares[key]) {
+      // Square is taken - return current state so client can refresh
       return NextResponse.json(
         {
-          error: "Board was updated. Please refresh and try again.",
+          error: "Square already taken",
           state: sanitizeState(state, adminId),
         },
         { status: 409 }
@@ -197,13 +200,17 @@ export const POST = async (
         { status: 400 }
       );
     }
-    if (revisionId !== undefined && (state.revisionId ?? 1) !== revisionId) {
+    // Check square ownership before calling unclaimSquare - if they own it, allow unclaim even if revisionId differs
+    const key = `${square[0]},${square[1]}`;
+    const currentOwner = state.squares[key];
+    if (!currentOwner || currentOwner.trim() !== name.trim()) {
+      // They don't own this square - return current state so client can refresh
       return NextResponse.json(
         {
-          error: "Board was updated. Please refresh and try again.",
+          error: currentOwner ? "You can only remove your own square" : "Square is not claimed",
           state: sanitizeState(state, adminId),
         },
-        { status: 409 }
+        { status: 400 }
       );
     }
     const result = unclaimSquare(gameId, name, square[0], square[1], revisionId);

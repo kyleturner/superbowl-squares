@@ -29,6 +29,7 @@ function getBlobStore(): ReturnType<typeof getStore> | null {
  * - For squares: if one is empty and other has value, use the value; if both have values, prefer higher revisionId
  * - Merges users and userColors (union, prefer higher revisionId)
  * - Uses higher revisionId's locked, rowNumbers, colNumbers
+ * - Only bumps revisionId if there are actual conflicts (different squares filled)
  */
 function mergeGameStates(base: GameState, other: GameState): GameState {
   const baseRev = base.revisionId ?? 1;
@@ -38,30 +39,37 @@ function mergeGameStates(base: GameState, other: GameState): GameState {
   const primary = baseRev >= otherRev ? base : other;
   const secondary = baseRev >= otherRev ? other : base;
   
-  const merged: GameState = {
-    ...primary,
-    revisionId: Math.max(baseRev, otherRev) + 1, // Bump to indicate merge
-  };
-  
   // Merge squares: prefer non-empty, then prefer primary
   const allSquareKeys = new Set([
     ...Object.keys(primary.squares ?? {}),
     ...Object.keys(secondary.squares ?? {}),
   ]);
   
-  merged.squares = {};
+  let hasConflict = false;
+  const mergedSquares: Record<string, string> = {};
   for (const key of allSquareKeys) {
     const primaryVal = primary.squares?.[key];
     const secondaryVal = secondary.squares?.[key];
     if (primaryVal && !secondaryVal) {
-      merged.squares[key] = primaryVal;
+      mergedSquares[key] = primaryVal;
     } else if (!primaryVal && secondaryVal) {
-      merged.squares[key] = secondaryVal;
+      mergedSquares[key] = secondaryVal;
+    } else if (primaryVal && secondaryVal && primaryVal !== secondaryVal) {
+      // Both have values and they differ - conflict!
+      hasConflict = true;
+      mergedSquares[key] = primaryVal; // Prefer primary (higher revisionId)
     } else if (primaryVal && secondaryVal) {
-      // Both have values - prefer primary (higher revisionId)
-      merged.squares[key] = primaryVal;
+      // Same value in both, no conflict
+      mergedSquares[key] = primaryVal;
     }
   }
+  
+  // Only bump revisionId if there was an actual conflict
+  const merged: GameState = {
+    ...primary,
+    squares: mergedSquares,
+    revisionId: hasConflict ? Math.max(baseRev, otherRev) + 1 : Math.max(baseRev, otherRev),
+  };
   
   // Merge users: union, keep latest lastSeen
   merged.users = { ...primary.users };
@@ -273,9 +281,6 @@ export const claimSquare = (
 ): { success: boolean; error?: string } => {
   const state = store.get(gameId);
   if (!state) return { success: false, error: "Game not found" };
-  if (expectedRevisionId !== undefined && (state.revisionId ?? 1) !== expectedRevisionId) {
-    return { success: false, error: "STALE_REVISION" };
-  }
   if (state.locked) return { success: false, error: "Board is locked" };
   const key = `${row},${col}`;
   if (
@@ -286,9 +291,19 @@ export const claimSquare = (
   ) {
     return { success: false, error: "Invalid square" };
   }
+  
+  // Check if square is already taken
   if (state.squares[key]) {
     return { success: false, error: "Square already taken" };
   }
+  
+  // If revisionId doesn't match but square is still empty, allow the claim
+  // (the client will get updated state in response)
+  if (expectedRevisionId !== undefined && (state.revisionId ?? 1) !== expectedRevisionId) {
+    // Square is empty, so it's safe to claim - revision mismatch is just informational
+    // We'll proceed with the claim
+  }
+  
   const trimmedName = name.trim();
   if (!trimmedName) return { success: false, error: "Name is required" };
   if (!state.userColors) state.userColors = {};
@@ -313,9 +328,6 @@ export const unclaimSquare = (
 ): { success: boolean; error?: string } => {
   const state = store.get(gameId);
   if (!state) return { success: false, error: "Game not found" };
-  if (expectedRevisionId !== undefined && (state.revisionId ?? 1) !== expectedRevisionId) {
-    return { success: false, error: "STALE_REVISION" };
-  }
   if (state.locked) return { success: false, error: "Board is locked" };
   const key = `${row},${col}`;
   if (
@@ -330,6 +342,14 @@ export const unclaimSquare = (
   if (!current || current.trim() !== name.trim()) {
     return { success: false, error: "You can only remove your own square" };
   }
+  
+  // If revisionId doesn't match but they own the square, allow the unclaim
+  // (the client will get updated state in response)
+  if (expectedRevisionId !== undefined && (state.revisionId ?? 1) !== expectedRevisionId) {
+    // They own the square, so it's safe to unclaim - revision mismatch is just informational
+    // We'll proceed with the unclaim
+  }
+  
   delete state.squares[key];
   bumpRevision(state);
   return { success: true };
