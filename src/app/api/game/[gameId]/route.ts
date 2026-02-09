@@ -4,6 +4,7 @@ import {
   getGame,
   getOrCreateGame,
   ensureGameLoaded,
+  reloadAndMergeGame,
   persistGame,
   resetGame,
   populateNumbers,
@@ -42,13 +43,7 @@ export const GET = async (
 ) => {
   const { gameId } = await params;
   const adminId = getAdminIdFromRequest(request);
-  const loaded = await ensureGameLoaded(gameId);
-  if (!loaded) {
-    return NextResponse.json(
-      { error: "Game not found" },
-      { status: 404 }
-    );
-  }
+  await reloadAndMergeGame(gameId);
   const state = getGame(gameId);
   if (!state) {
     return NextResponse.json(
@@ -56,6 +51,8 @@ export const GET = async (
       { status: 404 }
     );
   }
+  // Persist merged state if merge happened
+  await persistGame(gameId);
   return NextResponse.json(sanitizeState(state, adminId));
 };
 
@@ -84,7 +81,7 @@ export const POST = async (
         { status: 400 }
       );
     }
-    await ensureGameLoaded(gameId);
+    await reloadAndMergeGame(gameId);
     const existing = getGame(gameId);
     const isFirstJoin = !existing;
     const effectiveAdminId =
@@ -108,13 +105,7 @@ export const POST = async (
     return response;
   }
 
-  const loaded = await ensureGameLoaded(gameId);
-  if (!loaded) {
-    return NextResponse.json(
-      { error: "Game not found" },
-      { status: 404 }
-    );
-  }
+  await reloadAndMergeGame(gameId);
   const state = getGame(gameId);
   if (!state) {
     return NextResponse.json(

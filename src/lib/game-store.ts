@@ -23,25 +23,128 @@ function getBlobStore(): ReturnType<typeof getStore> | null {
   }
 }
 
+/**
+ * Merge two game states intelligently to resolve conflicts.
+ * - Uses the state with higher revisionId as base
+ * - For squares: if one is empty and other has value, use the value; if both have values, prefer higher revisionId
+ * - Merges users and userColors (union, prefer higher revisionId)
+ * - Uses higher revisionId's locked, rowNumbers, colNumbers
+ */
+function mergeGameStates(base: GameState, other: GameState): GameState {
+  const baseRev = base.revisionId ?? 1;
+  const otherRev = other.revisionId ?? 1;
+  
+  // Use the state with higher revisionId as the base
+  const primary = baseRev >= otherRev ? base : other;
+  const secondary = baseRev >= otherRev ? other : base;
+  
+  const merged: GameState = {
+    ...primary,
+    revisionId: Math.max(baseRev, otherRev) + 1, // Bump to indicate merge
+  };
+  
+  // Merge squares: prefer non-empty, then prefer primary
+  const allSquareKeys = new Set([
+    ...Object.keys(primary.squares ?? {}),
+    ...Object.keys(secondary.squares ?? {}),
+  ]);
+  
+  merged.squares = {};
+  for (const key of allSquareKeys) {
+    const primaryVal = primary.squares?.[key];
+    const secondaryVal = secondary.squares?.[key];
+    if (primaryVal && !secondaryVal) {
+      merged.squares[key] = primaryVal;
+    } else if (!primaryVal && secondaryVal) {
+      merged.squares[key] = secondaryVal;
+    } else if (primaryVal && secondaryVal) {
+      // Both have values - prefer primary (higher revisionId)
+      merged.squares[key] = primaryVal;
+    }
+  }
+  
+  // Merge users: union, keep latest lastSeen
+  merged.users = { ...primary.users };
+  for (const [name, user] of Object.entries(secondary.users ?? {})) {
+    if (!merged.users[name] || (user.lastSeen ?? 0) > (merged.users[name]?.lastSeen ?? 0)) {
+      merged.users[name] = user;
+    }
+  }
+  
+  // Merge userColors: union, prefer primary
+  merged.userColors = { ...primary.userColors };
+  for (const [name, color] of Object.entries(secondary.userColors ?? {})) {
+    if (!merged.userColors[name]) {
+      merged.userColors[name] = color;
+    }
+  }
+  
+  return merged;
+}
+
 /** Load game from persistent store into memory cache. Returns true if game exists (in cache after load). */
 export async function ensureGameLoaded(gameId: string): Promise<boolean> {
-  if (store.has(gameId)) return true;
   const blob = getBlobStore();
-  if (!blob) return false;
+  if (!blob) {
+    // If no blob store, check in-memory only
+    return store.has(gameId);
+  }
+  
   try {
     const data = await blob.get(gameId, { type: "json" });
     if (data && typeof data === "object" && "gameId" in data && "adminId" in data) {
-      const state = data as GameState;
-      const needsMigration = typeof state.revisionId !== "number";
-      if (needsMigration) state.revisionId = 1;
-      store.set(gameId, state);
-      if (needsMigration) await persistGame(gameId);
-      return true;
+      const blobState = data as GameState;
+      const needsMigration = typeof blobState.revisionId !== "number";
+      if (needsMigration) blobState.revisionId = 1;
+      
+      const inMemoryState = store.get(gameId);
+      if (inMemoryState) {
+        // Merge: in-memory might have newer mutations, blob has persisted state
+        const merged = mergeGameStates(inMemoryState, blobState);
+        store.set(gameId, merged);
+        await persistGame(gameId); // Persist merged state
+        return true;
+      } else {
+        // No in-memory state, use blob state
+        store.set(gameId, blobState);
+        if (needsMigration) await persistGame(gameId);
+        return true;
+      }
     }
   } catch {
     // ignore
   }
-  return false;
+  
+  // If blob load failed but we have in-memory, return true
+  return store.has(gameId);
+}
+
+/** Reload game from Blobs and merge with in-memory state. Ensures we have latest before mutations. */
+export async function reloadAndMergeGame(gameId: string): Promise<boolean> {
+  const blob = getBlobStore();
+  if (!blob) return store.has(gameId);
+  
+  try {
+    const data = await blob.get(gameId, { type: "json" });
+    if (data && typeof data === "object" && "gameId" in data && "adminId" in data) {
+      const blobState = data as GameState;
+      if (typeof blobState.revisionId !== "number") blobState.revisionId = 1;
+      
+      const inMemoryState = store.get(gameId);
+      if (inMemoryState) {
+        const merged = mergeGameStates(inMemoryState, blobState);
+        store.set(gameId, merged);
+        return true;
+      } else {
+        store.set(gameId, blobState);
+        return true;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  
+  return store.has(gameId);
 }
 
 /** Persist current in-memory state to Blobs so other instances/devices can load it. */
